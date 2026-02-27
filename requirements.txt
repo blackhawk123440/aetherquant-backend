@@ -2,4 +2,4 @@ fastapi
 uvicorn[standard]
 python-dotenv
 alpaca-py
-polygon
+polygon-api-client
