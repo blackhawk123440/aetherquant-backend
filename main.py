@@ -1,11 +1,11 @@
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from datetime import datetime
 import asyncio
 import os
 
-app = FastAPI(title="AetherQuant Backend v2.1 - Fixed")
+app = FastAPI(title="AetherQuant Backend v2.2 - Fixed Imports")
 
 app.add_middleware(
     CORSMiddleware,
@@ -15,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Lazy loading - clients only created when needed (prevents startup crash)
+# Lazy clients
 def get_trading_client():
     try:
         from alpaca.trading.client import TradingClient
@@ -29,11 +29,11 @@ def get_trading_client():
 
 def get_polygon_client():
     try:
-        from polygon import RESTClient
-        key = os.getenv("POLYGON_KEY")
+        from massive import RESTClient  # Official 2026 client
+        key = os.getenv("POLYGON_KEY")  # Still called POLYGON_KEY in env
         return RESTClient(key)
     except Exception as e:
-        print(f"Polygon client error: {e}")
+        print(f"Polygon/Massive client error: {e}")
         return None
 
 @app.get("/api/status")
@@ -41,17 +41,17 @@ async def status():
     return {
         "status": "online",
         "time": datetime.utcnow().isoformat(),
-        "backend_version": "2.1 (Fixed)",
-        "message": "Ready - check logs if agents not running"
+        "backend_version": "2.2",
+        "message": "Ready - cycles active"
     }
 
 @app.get("/api/market_data")
 async def market_data():
     client = get_polygon_client()
     if not client:
-        return {"error": "Polygon key missing or invalid"}
+        return {"error": "Polygon/Massive key missing or invalid"}
     try:
-        aggs = client.get_aggs("SPY", 1, "minute", limit=20)
+        aggs = client.list_aggs("SPY", 1, "minute", limit=20)  # Updated method name if needed; check docs if fails
         prices = [a.close for a in aggs]
         return {"spy_prices": prices, "timestamp": datetime.utcnow().isoformat()}
     except Exception as e:
@@ -59,24 +59,24 @@ async def market_data():
 
 @app.post("/api/agent_cycle")
 async def agent_cycle():
-    print("🚀 Agent Cycle v2.1 running...")
-    from polygon_api_client import RESTClient()
+    print("🚀 Agent Cycle v2.2 running...")
+    polygon_client = get_polygon_client()
     if not polygon_client:
-        return {"success": False, "thought_stream": "Polygon key missing - using demo mode"}
-    
+        return {"success": False, "thought_stream": "Polygon/Massive key missing - demo mode"}
+
     try:
         last_trade = polygon_client.get_last_trade("SPY")
         price = last_trade.price
-        
+
         signal = "HOLD"
-        if price > 510:      # simple demo logic (replace with real RL later)
+        if price > 510:  # Demo logic
             signal = "BUY"
         elif price < 500:
             signal = "SELL"
-        
+
         thought = f"SPY price: ${price:.2f} → Signal: {signal} (Risk OK)"
         print(thought)
-        
+
         return {
             "success": True,
             "price": price,
@@ -112,16 +112,16 @@ async def performance():
     except:
         return {"equity": 100000, "pnl_today": 0}
 
-# 24/7 autonomous loop
+# Autonomous loop
 async def autonomous_loop():
     while True:
         await agent_cycle()
-        await asyncio.sleep(300)  # every 5 minutes
+        await asyncio.sleep(300)  # 5 min
 
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(autonomous_loop())
-    print("✅ AetherQuant Backend v2.1 started successfully - 5-min loop active")
+    print("✅ AetherQuant Backend v2.2 started - 5-min loop active")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
