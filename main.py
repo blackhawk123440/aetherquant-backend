@@ -60,7 +60,7 @@ async def market_data():
 @app.post("/api/agent_cycle")
 async def agent_cycle():
     print("🚀 Agent Cycle v2.1 running...")
-    polygon_client = get_polygon_client()
+    from polygon_api_client import RESTClient()
     if not polygon_client:
         return {"success": False, "thought_stream": "Polygon key missing - using demo mode"}
     
